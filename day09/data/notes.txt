@@ -1,0 +1,4 @@
+Python is most popular prorgaming language.
+It is easy to learn.
+Python is widely used in Artificial Intellegence, Machine learning, Data Science, Automation and Web Development.
+Pyhton support object oriented programing  and has thousands of useful libraries.
