@@ -1,3 +1,0 @@
-mysql is a relational Database management System
-It stores structural data using tables, rows and columns.
-SQL is used to query data.
