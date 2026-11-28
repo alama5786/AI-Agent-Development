@@ -1,3 +1,11 @@
+"""
+planner.py  --  picks the next task AND the tool for it (stage 10).
+
+Significance:
+    Compared with stage 9, the planner now sees the task list and must answer in a
+    strict two-line format (TASK / TOOL) or FINISH when every task is done. The
+    strict format lets loop.parse_decision() read the answer reliably.
+"""
 from openai import OpenAI
 from dotenv import load_dotenv
 import os
@@ -10,6 +18,7 @@ client = OpenAI(
 )
 
 def build_tool_descriptions(tools):
+    """Format MCP tool objects (name + docstring) as text for the planner prompt."""
     descriptions = ""
 
     for tool in tools:
@@ -23,7 +32,13 @@ def build_tool_descriptions(tools):
     return descriptions
 
 def planner (state, tools):
+    """Ask the LLM for the next decision.
+
+    Returns:
+        "TASK: <task>\\nTOOL: <tool>"  or  "FINISH".
+    """
     tool_descriptions = build_tool_descriptions(tools)
+    # The prompt exposes the whole state so the model can see progress and failures.
     prompt = f"""
     You are an AI planner
     Your job is to select the next task and the best tool to complete it.
@@ -67,4 +82,3 @@ def planner (state, tools):
     )
 
     return response.choices[0].message.content.strip()
-

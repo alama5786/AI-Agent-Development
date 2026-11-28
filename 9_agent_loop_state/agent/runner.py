@@ -1,3 +1,9 @@
+"""
+runner.py  --  entry point for stage 9: `python runner.py`.
+
+Wires everything together: connect to the MCP server, discover tools, read the
+user's request, run the agent loop, print the final answer, disconnect.
+"""
 from openai import OpenAI
 from dotenv import load_dotenv
 import os
@@ -19,6 +25,10 @@ client = OpenAI(
 )
 
 def format_answer (state):
+    """Turn the collected actions/observations into a natural-language reply.
+
+    Called by the loop when the planner returns FINISH.
+    """
     prompt = f"""
     The user asked:
     {state["user_request"]}
@@ -45,6 +55,7 @@ def format_answer (state):
     return response.choices[0].message.content.strip()
 
 async def main():
+    # Connect and discover what tools the server offers.
     mcp = await connect()
     tools = await discover_tool(mcp)
 
@@ -55,6 +66,7 @@ async def main():
     for tool in tools:
         print(tool.name)
 
+    # Run the agent on one request and show the result.
     user_request = input("\nUser:")
     state = await run_agent_loop(
         user_request,

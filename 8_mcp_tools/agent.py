@@ -1,3 +1,12 @@
+"""
+agent.py  --  Stage 8: a one-shot agent that uses tools served over MCP.
+
+Pipeline:
+    connect -> discover tools -> PLAN (LLM picks a tool) -> EXECUTE (via MCP)
+    -> RESPOND (LLM phrases the answer) -> disconnect.
+Unlike stage 7, tools are discovered dynamically from the server instead of
+being hard-coded in the prompt.
+"""
 import asyncio
 from openai import OpenAI
 from dotenv import load_dotenv
@@ -19,6 +28,7 @@ from mcp_client import (
     )
 # define a function to build tool descriptions for the AI model
 def build_tool_descriptions(tools):
+    """Turn the MCP tool objects into a text block (name + description) for the planner prompt."""
     tool_descriptions = ""
     for tool in tools:
         tool_descriptions += f"""
@@ -28,6 +38,11 @@ def build_tool_descriptions(tools):
     return tool_descriptions
 
 def generate_response (user_request, tool_result):
+    """Ask the LLM to turn the raw tool output into a natural answer for the user.
+
+    The prompt tells the model to treat the tool result as the facts, stay concise
+    and not expose internal tool/planning details.
+    """
     prompt = f"""
     The user asked:
     {user_request}
@@ -55,6 +70,7 @@ def generate_response (user_request, tool_result):
 
 # define a function to plan the tool execution based on user input and available tools
 def planner(user_request, tools):
+    """Ask the LLM to pick the best tool name for `user_request` from `tools`."""
     # Create tool descriptions for each tool
     tool_descriptions = build_tool_descriptions(tools)
 
@@ -86,6 +102,7 @@ def planner(user_request, tools):
 # finally, define the main function to orchestrate the steps
 async def main():
     # Step1:Connect to the MCP server
+    # (this local name shadows the module-level OpenAI `client` only inside main)
     client = await connect()
 
     # Step2: Discover available tools on the MCP server
@@ -112,7 +129,7 @@ async def main():
     final_answer = generate_response(user_request, tool_result)
     print(final_answer)
 
-    # Step3: Disconnect from the MCP server
+    # Step6: Disconnect from the MCP server
     await disconnect(client)
 
 if __name__ == "__main__":

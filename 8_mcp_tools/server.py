@@ -1,5 +1,15 @@
+"""
+server.py  --  Stage 8: an MCP (Model Context Protocol) tool server.
+
+Significance:
+    MCP is a standard way to expose tools to AI agents over a protocol instead of
+    importing Python functions directly. Any MCP client can discover these tools
+    (name + docstring description) and call them. The docstrings matter: they are
+    what the planner LLM reads to decide which tool to use.
+"""
 from datetime import datetime
 from fastmcp import FastMCP
+# The server's display name.
 mcp = FastMCP("Time Server")
 
 @mcp.tool()
@@ -20,10 +30,13 @@ def generate_password():
     import string
 
     characters = string.ascii_letters + string.digits + string.punctuation
+    # 12 secure random characters (length is fixed in this stage).
     password = ''.join(secrets.choice(characters) for _ in range(12))
     return password
 
 
+# Run the server (stdio transport) when the file is launched; the client below
+# starts this file itself as a subprocess.
 if __name__ == "__main__":
     print ("Starting the Time Server...")
     mcp.run()

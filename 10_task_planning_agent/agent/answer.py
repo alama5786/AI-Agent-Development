@@ -1,3 +1,11 @@
+"""
+answer.py  --  writes the final user-facing reply (stage 10).
+
+Significance:
+    Moved out of runner.py into its own module. It gives the LLM everything the
+    agent collected (tasks, actions, observations, results) and asks for a short
+    natural answer that hides internal details.
+"""
 from openai import OpenAI
 from dotenv import load_dotenv
 import os
@@ -9,6 +17,7 @@ load_dotenv()
 client = OpenAI(base_url=os.getenv("BASE_URL"), api_key=os.getenv("API_KEY"))
 
 def format_answer(state):
+    """Return a natural, concise answer built from the final `state`."""
     prompt = f"""
     The user asked:
     {state["user_request"]}

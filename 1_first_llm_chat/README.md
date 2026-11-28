@@ -6,6 +6,59 @@
 
 > "On day 1 I connected Python to an LLM through the OpenAI-compatible API, loading config from `.env`. I then built a terminal chat assistant that keeps the full message history, so the model remembers earlier turns."
 
+## Architecture and Workflow
+
+### Architecture
+
+```
+┌──────────────┐   text    ┌──────────────────────────────┐   HTTPS    ┌─────────────────────┐
+│     USER     │ ────────► │  assistant.py (Python app)   │ ─────────► │  LLM server         │
+│  (terminal)  │ ◄──────── │                              │ ◄───────── │  (Ollama / OpenAI)  │
+└──────────────┘   reply   │  messages = [ ... history ]  │  messages  │  /chat/completions  │
+                           └──────────────┬───────────────┘   + reply  └─────────────────────┘
+                                          │ reads once at start
+                                          ▼
+                                   .env  (BASE_URL, API_KEY, MODEL)
+```
+
+The only moving part is a Python **list** (`messages`). The model is stateless, so the app owns the memory.
+
+### Workflow
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant A as assistant.py
+    participant L as LLM
+    A->>A: load_dotenv and create client
+    loop every turn until exit or quit
+        U->>A: types a message
+        A->>A: messages.append(role user)
+        A->>L: chat.completions.create(model, messages)
+        L-->>A: assistant reply
+        A->>A: messages.append(role assistant)
+        A-->>U: print reply
+    end
+```
+
+### Build it yourself (5 steps)
+
+1. `pip install openai python-dotenv`, then create `.env` with `BASE_URL`, `API_KEY`, `MODEL`.
+2. `load_dotenv()` and create `client = OpenAI(api_key=..., base_url=...)`.
+3. Make one call with `messages=[{"role": "user", "content": "hi"}]` and print `response.choices[0].message.content` (this is `hello_ai.py`).
+4. Wrap it in `while True`, keeping a `messages` list.
+5. After each reply, append it as `{"role": "assistant", ...}` so the next call includes it.
+
+```python
+messages = []
+while True:
+    messages.append({"role": "user", "content": input("You: ")})
+    reply = client.chat.completions.create(model=MODEL, messages=messages)
+    text = reply.choices[0].message.content
+    messages.append({"role": "assistant", "content": text})
+    print(text)
+```
+
 ## 2. Files
 
 | File | Purpose |

@@ -6,6 +6,50 @@
 
 > "On day 7 I added a planner. A dedicated LLM call receives the user request plus a list of available tools and replies with just the tool name, or `none`. The assistant runs that tool, then makes a second LLM call to turn the raw tool result into a natural reply. This is the first real 'agentic' step: the model decides, the code executes."
 
+## Architecture and Workflow
+
+### Architecture
+
+```
+                 ┌──────────────┐   1. "which tool?"   ┌───────────────────────┐
+ user request ─► │ assistant.py │ ───────────────────► │ planner.choose_tool() │──► LLM call #1 (PLAN)
+                 │ (orchestrator│ ◄─────────────────── │ returns a tool name   │
+                 │              │   "roll_dice"        └───────────────────────┘
+                 │              │   2. run it
+                 │              │ ───────────────────► tools.py  get_current_time / roll_dice / generate_password
+                 │              │ ◄─────────────────── raw result
+                 │              │   3. phrase it
+                 │              │ ───────────────────► LLM call #2 (RESPOND) ──► friendly reply to user
+                 └──────────────┘
+```
+
+Two LLM calls per request. The model **decides**, our code **acts**. This split is the foundation of every agent.
+
+### Workflow
+
+```mermaid
+flowchart TD
+    A["User request"] --> B["choose_tool: LLM picks a tool name"]
+    B --> C{"tool name"}
+    C -- get_current_time --> D["get_current_time()"]
+    C -- roll_dice --> E["roll_dice()"]
+    C -- generate_password --> F["generate_password(12)"]
+    C -- none or unknown --> G["result = sorry message"]
+    D --> H["Build prompt: request + tool + result"]
+    E --> H
+    F --> H
+    G --> H
+    H --> I["LLM writes the final reply"]
+    I --> J["Print reply"]
+```
+
+### Build it yourself (4 steps)
+
+1. Reuse `tools.py` from day 5.
+2. In `planner.py` write a prompt that lists each tool with a one-line description and says "reply with the tool name only, or none".
+3. `choose_tool()` returns `response...content.strip().lower()` so the reply is easy to compare.
+4. In `assistant.py`, map the name to a function with `if/elif`, then make a second LLM call that turns the raw result into a sentence.
+
 ## 2. Files
 
 | File | Purpose |

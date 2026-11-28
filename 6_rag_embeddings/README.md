@@ -6,6 +6,70 @@
 
 > "On day 6 I built a basic RAG pipeline. Each document in `knowledge/` is converted to an embedding vector with `nomic-embed-text` (via Ollama). At question time I embed the question, compute cosine similarity against every document, pick the best match, and put that document into the prompt so the LLM answers using only that context."
 
+## Architecture and Workflow
+
+### Architecture
+
+```
+┌─────────────────────────── INDEXING (once at start-up) ───────────────────────────┐
+│ knowledge/*.txt ─► load_document() ─► {filename: text} ─► create_embedding() ─┐     │
+│                                                                                ▼    │
+│                                                        document_embeddings {filename: vector}
+└─────────────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────── QUERYING (every question) ─────────────────────────────┐
+│ question ─► create_embedding() ─► cosine_similarity vs every document vector         │
+│                                              │ pick highest score                    │
+│                                              ▼                                       │
+│                                    best document text                                │
+│                                              │                                       │
+│              prompt = "Answer only using: <document>  Question: <q>"                 │
+│                                              ▼                                       │
+│                                       Chat LLM (.env) ─► answer                      │
+└─────────────────────────────────────────────────────────────────────────────────────┘
+
+ Two models:  embedding model = nomic-embed-text on local Ollama (text -> numbers)
+              chat model      = whatever .env points to (numbers are never shown to it)
+```
+
+### Workflow
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant R as rag.py
+    participant E as Embedding model
+    participant L as Chat LLM
+    Note over R,E: start-up
+    R->>R: load_document(knowledge)
+    loop each document
+        R->>E: create_embedding(text)
+        E-->>R: vector
+    end
+    loop each question
+        U->>R: question
+        R->>E: create_embedding(question)
+        E-->>R: question vector
+        R->>R: cosine_similarity with every document, keep best
+        R->>L: prompt containing best document and the question
+        L-->>R: answer
+        R-->>U: print answer
+    end
+```
+
+### Build it yourself (5 steps)
+
+1. Run Ollama and `ollama pull nomic-embed-text`. Point an `OpenAI(base_url="http://localhost:11434/v1", api_key="ollama")` client at it.
+2. Write `create_embedding(text)` that returns `client.embeddings.create(model=..., input=[text]).data[0].embedding`.
+3. Write `cosine_similarity(a, b)` with NumPy: `dot(a, b) / (norm(a) * norm(b))`.
+4. At start-up embed every document once and keep a dict `{filename: vector}`.
+5. For each question: embed it, loop over the dict, keep the highest score, then paste that document into the prompt.
+
+```python
+best = max(doc_vectors, key=lambda name: cosine_similarity(q_vec, doc_vectors[name]))
+prompt = f"Answer using only this content: {documents[best]}\nQuestion: {question}"
+```
+
 ## 2. Files
 
 | File | Purpose |

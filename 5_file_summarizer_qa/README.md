@@ -6,6 +6,50 @@
 
 > "On day 5 I added a `read_text_file` tool. With the commands `summarize <file>` and `ask <file> <question>`, the assistant loads a document from `data/`, puts its text into the prompt, and asks the LLM to summarise it or answer strictly from it. This is manual context injection, the idea that RAG automates on day 6."
 
+## Architecture and Workflow
+
+### Architecture
+
+```
+                        ┌───────────────────── assistant.py ─────────────────────┐
+ user command ────────► │  command router (checks the start of the text)          │
+                        │   "summarize <file>"   "ask <file> <question>"   other  │
+                        └───────┬─────────────────────┬──────────────────────┬────┘
+                                │                     │                      │
+                                ▼                     ▼                      ▼
+                        read_text_file()      read_text_file()        execute_tool()
+                        data/<file>           data/<file>             or normal chat
+                                │                     │
+                                ▼                     ▼
+                      prompt: "Summarize"     prompt: "Answer ONLY from the document"
+                                └──────────┬──────────┘
+                                           ▼
+                                          LLM ──► printed answer
+```
+
+The whole file goes **inside the prompt**. This is the idea RAG (day 6) improves on by sending only the relevant document.
+
+### Workflow
+
+```mermaid
+flowchart TD
+    A["User input"] --> B{"Starts with summarize?"}
+    B -- yes --> C["read data/file"] --> D["Prompt: Summarize the document"] --> L["LLM"]
+    B -- no --> E{"Starts with ask?"}
+    E -- yes --> F["split into file and question"] --> G["read data/file"] --> H["Prompt: answer only from document, else say not present"] --> L
+    E -- no --> I{"Keyword tool matches?"}
+    I -- yes --> J["Print tool result"]
+    I -- no --> K["Normal chat with history"] --> L
+    L --> M["Print answer"]
+```
+
+### Build it yourself (4 steps)
+
+1. Add `read_text_file(path)` to `tools.py`. Return error text instead of raising, so the chat keeps running.
+2. For `summarize`, strip the command word, read the file and build `f"Summarize the following document:\n\n{content}"`.
+3. For `ask`, use `user_input.split(maxsplit=2)` to get `[command, filename, question]`.
+4. Write a grounded prompt that says "answer only from the document, otherwise say it is not present". This is what reduces hallucination.
+
 ## 2. Files
 
 | File | Purpose |

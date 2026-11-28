@@ -1,3 +1,12 @@
+"""
+planner.py  --  Stage 7: lets the LLM choose which tool to use.
+
+Significance:
+    Replaces hard-coded keyword matching (stage 4) with an LLM "planner".
+    We describe the available tools in a prompt and the model answers with the
+    tool name that best fits the request. This is the core idea behind agents:
+    the model decides the action, our code carries it out.
+"""
 from openai import OpenAI
 from dotenv import load_dotenv
 import os
@@ -9,6 +18,14 @@ client = OpenAI(api_key=os.getenv("API_KEY"),
 )
 
 def choose_tool(user_request):
+   """Ask the LLM which tool fits `user_request`.
+
+   Returns:
+       One of "get_current_time", "roll_dice", "generate_password" or "none"
+       (lower-cased, whitespace stripped) -- exactly what the model replied.
+   """
+   # The prompt lists every tool and forces a one-word answer so the output
+   # is easy to compare against in assistant.py.
    planner_prompt = f"""
 You are an AI assistant.
 
@@ -29,5 +46,6 @@ Please respond with the tool name only (e.g., get_current_time, roll_dice, gener
                     {"role": "user", "content": planner_prompt}
                  ]
    )
+   # Normalise the reply so "Roll_Dice \n" still matches "roll_dice".
    tool_choice = response.choices[0].message.content.strip().lower()
    return tool_choice   

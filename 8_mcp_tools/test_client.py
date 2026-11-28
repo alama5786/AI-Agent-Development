@@ -1,3 +1,5 @@
+# Manual end-to-end test of the MCP client helpers (no LLM involved):
+# connect -> list tools -> call "current_time" -> disconnect.
 import asyncio
 
 from mcp_client import *    
@@ -15,6 +17,7 @@ async def main():
     # Execute a tool on the MCP server
     tool_name = "current_time"  # Replace with the desired tool name
     result = await execute_tool(client, tool_name)
+    # result.content[0].text holds the tool's returned value as text.
     print(f"\nResult of executing:", result.content[0].text)
 
     # Disconnect from the MCP server

@@ -6,6 +6,52 @@
 
 > "On day 2 I added role selection. The user picks a persona (teacher, Python expert, travel guide) and that choice becomes the `system` message at the start of the history, which steers every later reply."
 
+## Architecture and Workflow
+
+### Architecture
+
+```
+                 start-up menu: 1 Teacher | 2 Python Expert | 3 Travel Guide
+                                        │ user picks a number
+                                        ▼
+                         roles = { "1": prompt, "2": prompt, "3": prompt }
+                                        │ roles.get(choice, default)
+                                        ▼
+┌────────┐        ┌───────────────────────────────────────────────┐        ┌──────────┐
+│  USER  │ ─────► │ messages = [ {system: persona},               │ ─────► │   LLM    │
+│        │ ◄───── │              {user}, {assistant}, {user} ... ]│ ◄───── │          │
+└────────┘        └───────────────────────────────────────────────┘        └──────────┘
+```
+
+Same chat loop as day 1. The only new piece is the first message, with role `system`, which sets the persona.
+
+### Workflow
+
+```mermaid
+flowchart TD
+    A["Start"] --> B["Show role menu"]
+    B --> C["User enters 1, 2 or 3"]
+    C --> D["messages = system prompt from roles.get(choice, default)"]
+    D --> E{"User input is exit or quit?"}
+    E -- yes --> Z["Goodbye"]
+    E -- no --> F["Append user message"]
+    F --> G["Send whole messages list to LLM"]
+    G --> H["Append and print assistant reply"]
+    H --> I["Print conversation history for debugging"]
+    I --> E
+```
+
+### Build it yourself (4 steps)
+
+1. Start from the day 1 chat loop.
+2. Create a `roles` dict that maps menu choices to system prompts.
+3. Initialise `messages` with a single `{"role": "system", "content": roles.get(choice, fallback)}`.
+4. Everything else is unchanged. Use `.get()` with a fallback so a bad menu choice still works.
+
+```python
+messages = [{"role": "system", "content": roles.get(choice, "You are a helpful assistant.")}]
+```
+
 ## 2. Files
 
 | File | Purpose |

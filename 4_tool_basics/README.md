@@ -6,6 +6,56 @@
 
 > "On day 4 I introduced tools. I wrote plain Python functions and a small `tool_manager` that routes the user's input to the right function using keyword matching. This is the simplest form of tool use, and it sets up the later LLM-driven planner."
 
+## Architecture and Workflow
+
+### Architecture
+
+```
+┌────────┐   input    ┌──────────────┐ keyword hit ┌───────────────┐   calls   ┌───────────────────┐
+│  USER  │ ─────────► │ assistant.py │ ──────────► │ tool_manager  │ ────────► │ tools.py          │
+│        │ ◄───────── │ (chat loop)  │ ◄────────── │ execute_tool()│ ◄──────── │ get_current_time  │
+└────────┘   answer   └──────┬───────┘   result    └───────────────┘  value    │ roll_dice         │
+                             │ no keyword matched (None)                       │ generate_password │
+                             ▼                                                 └───────────────────┘
+                        ┌─────────┐
+                        │   LLM   │  normal chat with history
+                        └─────────┘
+```
+
+Layers: **UI** (`assistant.py`) → **router** (`tool_manager.py`) → **tools** (`tools.py`). Each layer only knows the one below it.
+
+### Workflow
+
+```mermaid
+flowchart TD
+    A["User types a message"] --> B["execute_tool(user_input)"]
+    B --> C{"Contains time, dice or password?"}
+    C -- time --> T1["get_current_time()"]
+    C -- dice --> T2["roll_dice()"]
+    C -- password --> T3["ask for length, then generate_password(n)"]
+    C -- none --> L["Send to LLM as normal chat"]
+    T1 --> R["Print tool result"]
+    T2 --> R
+    T3 --> R
+    L --> P["Print LLM reply"]
+    R --> A
+    P --> A
+```
+
+### Build it yourself (4 steps)
+
+1. Write plain functions in `tools.py` (`get_current_time`, `roll_dice`, `generate_password`). Test each with `test_tool.py` before touching the LLM.
+2. Write `execute_tool(text)` in `tool_manager.py`: keyword check, call the function, return a string, else `None`.
+3. In the chat loop, call `execute_tool` first. If it returns a value, print it and `continue`.
+4. Otherwise fall through to the normal LLM call.
+
+```python
+result = execute_tool(user_input)
+if result:
+    print(result); continue
+# ...otherwise call the LLM
+```
+
 ## 2. Files
 
 | File | Purpose |

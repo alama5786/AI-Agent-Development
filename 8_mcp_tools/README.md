@@ -6,6 +6,58 @@
 
 > "On day 8 I introduced MCP. The tools live in `server.py` (built with FastMCP). The agent connects with an MCP client, **discovers** the available tools, shows their names and descriptions to an LLM planner, runs the chosen tool remotely, and finally asks the LLM to phrase a natural answer. Tools are decoupled from the agent, so I can add or change them without touching the agent code."
 
+## Architecture and Workflow
+
+### Architecture
+
+```
+┌──────────────────────── AGENT PROCESS ────────────────────────┐        ┌───────── MCP SERVER ─────────┐
+│                                                               │        │  server.py (FastMCP)         │
+│  agent.py                                                     │        │  @mcp.tool current_time     │
+│   ├─ planner()  ──► LLM  "which tool?"                        │        │  @mcp.tool roll_dice        │
+│   └─ generate_response() ──► LLM  "say it nicely"             │        │  @mcp.tool generate_password│
+│                                                               │        └──────────────▲──────────────┘
+│  mcp_client.py   connect / discover_tool / execute_tool /     │   MCP protocol        │
+│                  disconnect  ─────────────────────────────────┼───────(stdio)─────────┘
+└───────────────────────────────────────────────────────────────┘   list_tools, call_tool
+```
+
+The agent no longer imports tool functions. It **discovers** them at run time from the server, so tools can change without touching the agent.
+
+### Workflow
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant A as agent.py
+    participant C as mcp_client
+    participant S as MCP server
+    participant L as LLM
+    A->>C: connect()
+    C->>S: start server.py, open session
+    A->>C: discover_tool()
+    C->>S: list_tools
+    S-->>A: names and descriptions
+    U->>A: request
+    A->>L: planner prompt with tool descriptions
+    L-->>A: tool name
+    A->>C: execute_tool(name)
+    C->>S: call_tool
+    S-->>A: tool result
+    A->>L: generate_response(request, result)
+    L-->>A: natural answer
+    A-->>U: print answer
+    A->>C: disconnect()
+```
+
+### Build it yourself (5 steps)
+
+1. `pip install fastmcp`. In `server.py` create `mcp = FastMCP("Time Server")` and decorate functions with `@mcp.tool()`. **The docstring is the tool description the LLM reads.**
+2. Finish the file with `if __name__ == "__main__": mcp.run()`.
+3. Write `mcp_client.py` with four async helpers: `connect` (`Client("server.py")` plus `__aenter__`), `discover_tool` (`list_tools`), `execute_tool` (`call_tool`), `disconnect` (`__aexit__`).
+4. Check it with `test_client.py` before adding any LLM.
+5. In `agent.py`: build a tool-description string, ask the LLM for a tool name, call `execute_tool`, then ask the LLM to phrase the result.
+
 ## 2. Files
 
 | File | Purpose |

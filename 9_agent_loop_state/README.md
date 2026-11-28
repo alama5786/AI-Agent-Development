@@ -6,6 +6,71 @@
 
 > "On day 9 I built a real agent loop. Instead of one tool call, the agent repeats: the planner looks at the state (request, actions so far, observations) and picks the next tool, or says `FINISH`. The executor runs the tool on the MCP server, and the result is saved into the state. A `max_steps` limit prevents infinite loops. When the planner says `FINISH`, an LLM writes the final answer from the collected observations."
 
+## Architecture and Workflow
+
+### Architecture
+
+```
+┌────────────────────────────── AGENT PROCESS ──────────────────────────────┐      ┌──── MCP SERVER ────┐
+│                                                                            │      │ server.py          │
+│  runner.py  (entry: connect, discover, input, run loop, print)             │      │ current_time       │
+│      │                                                                     │      │ roll_dice          │
+│      ▼                                                                     │      │ generate_password  │
+│  loop.py  run_agent_loop()  ◄── the HEART                                  │      └─────────▲──────────┘
+│      │ reads / writes                                                      │                │
+│      ▼                                                                     │                │
+│  state.py  { request, actions[], observations[], step, finished, answer }  │                │
+│      ▲            ▲                    ▲                                   │                │
+│      │            │                    │                                   │                │
+│  planner.py   executor.py ─► mcp_client.py ─────────────────────────────────┼────────────────┘
+│  (LLM picks   (runs the tool)                                              │
+│   next tool                                                                │
+│   or FINISH)          format_answer() ─► LLM writes the final reply        │
+└────────────────────────────────────────────────────────────────────────────┘
+```
+
+Planner and executor are **passed into** the loop (dependency injection), so the loop never knows how they work.
+
+### Workflow
+
+```mermaid
+flowchart TD
+    S["create_state(request)"] --> C{"can_continue? not finished and step below max_steps"}
+    C -- no --> END["return state"]
+    C -- yes --> P["planner(state, tools) returns tool name or FINISH"]
+    P --> F{"FINISH?"}
+    F -- yes --> A["format_answer(state) then finish(state)"] --> END
+    F -- no --> X["execute_action: call tool on MCP server"]
+    X --> R["add_action and record_observation"]
+    R --> N["next_step"] --> C
+```
+
+### Example trace: "generate a password and tell me the time"
+
+| Step | Planner returns | Observation stored |
+|---|---|---|
+| 1 | `generate_password` | `aB3$...` |
+| 2 | `current_time` | `2026-11-28 10:15:00` |
+| 3 | `FINISH` | `format_answer` writes the reply |
+
+### Build it yourself (6 steps)
+
+1. Copy `server.py` and `mcp_client.py` from day 8.
+2. Write `state.py` first: a dict plus `create_state`, `add_action`, `record_observation`, `next_step`, `can_continue`, `finish`. Test it with `test_state.py` (no LLM needed).
+3. Write `executor.py`: call `execute_tool`, return `result.content[0].text`.
+4. Write `planner.py`: put request, actions, observations and tool descriptions in the prompt, and require "tool name or FINISH".
+5. Write `loop.py` as `while can_continue(state):` plan, act, record, step.
+6. Write `runner.py` to connect, discover, call `run_agent_loop` and print `state["final_answer"]`.
+
+```python
+while can_continue(state):
+    action = planner(state, tools)
+    if action == "FINISH":
+        finish(state, format_answer(state)); break
+    obs = await execute_action(action, state, client)
+    add_action(state, action); record_observation(state, action, obs); next_step(state)
+```
+
 ## 2. Layout
 
 ```

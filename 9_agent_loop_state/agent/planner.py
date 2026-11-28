@@ -1,3 +1,10 @@
+"""
+planner.py  --  the agent's decision maker (stage 9).
+
+Significance:
+    Each loop iteration the LLM is shown the request, what has already been done
+    and what the tools returned, and must reply with ONE next tool name, or FINISH.
+"""
 from openai import OpenAI
 from dotenv import load_dotenv
 import os
@@ -10,6 +17,7 @@ client = OpenAI(
 )
 
 def build_tool_descriptions(tools):
+    """Format MCP tool objects (name + docstring) as text for the planner prompt."""
     descriptions = ""
 
     for tool in tools:
@@ -23,7 +31,13 @@ def build_tool_descriptions(tools):
     return descriptions
 
 def planner (state, tools):
+    """Ask the LLM for the next action.
+
+    Returns:
+        A tool name (e.g. "current_time") or the word "FINISH".
+    """
     tool_descriptions = build_tool_descriptions(tools)
+    # The rules stop the model from repeating completed actions and tell it when to stop.
     prompt = f"""
     You are an AI planner
     Your job is to decide only the next action.
@@ -60,4 +74,3 @@ def planner (state, tools):
     )
 
     return response.choices[0].message.content.strip()
-
